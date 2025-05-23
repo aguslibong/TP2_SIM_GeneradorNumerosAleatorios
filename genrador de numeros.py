@@ -2,13 +2,9 @@ import tkinter as tk
 import random
 import math
 import matplotlib.pyplot as plt
-import bisect
-from scipy.stats import chi2
-from scipy.stats import norm
-from scipy.stats import expon
+from scipy.stats import chi2, norm, expon
 
 def crear_grupos_intervalos(minimo, maximo, intervalos):
-    # Crear grupos de intervalos
     grupos_intervalos = []
     amplitud_intervalo = (maximo - minimo) / intervalos
     for i in range(intervalos):
@@ -18,12 +14,12 @@ def crear_grupos_intervalos(minimo, maximo, intervalos):
     return grupos_intervalos
 
 def contar_numeros_en_cada_intervalo(lista, grupos_intervalos, intervalos):
-    contador = [0] * intervalos #Este es el contador de frecuencias en cada intervalo
+    contador = [0] * intervalos
     for numero in lista:
         for i, (inicio, fin) in enumerate(grupos_intervalos):
             if inicio <= numero <= fin:
                 contador[i] += 1
-                break  # Si ya lo contó en un intervalo, no necesita seguir
+                break
     return contador
 
 def frecuencia_esperada_normal(grupos_intervalos, total_datos, media, desviacion):
@@ -31,8 +27,7 @@ def frecuencia_esperada_normal(grupos_intervalos, total_datos, media, desviacion
     for inicio, fin in grupos_intervalos:
         prob_inicio = norm.cdf(inicio, loc=media, scale=desviacion)
         prob_fin = norm.cdf(fin, loc=media, scale=desviacion)
-        prob_intervalo = prob_fin - prob_inicio
-        frecuencia = total_datos * prob_intervalo
+        frecuencia = total_datos * (prob_fin - prob_inicio)
         frecuencias.append(frecuencia)
     return frecuencias
 
@@ -41,54 +36,44 @@ def frecuencia_esperada_exponencial(grupos_intervalos, total_datos, lambd):
     for inicio, fin in grupos_intervalos:
         prob_inicio = expon.cdf(inicio, scale=1/lambd)
         prob_fin = expon.cdf(fin, scale=1/lambd)
-        prob_intervalo = prob_fin - prob_inicio
-        frecuencia = total_datos * prob_intervalo
+        frecuencia = total_datos * (prob_fin - prob_inicio)
         frecuencias.append(frecuencia)
     return frecuencias
 
 def obtener_chi_calculado(frecuencia_observada, frecuencia_esperada):
     chi_calculada = 0
     for fo, fe in zip(frecuencia_observada, frecuencia_esperada):
-
-        if fe > 0:  # Evitar división por cero
+        if fe > 0:
             chi_calculada += ((fo - fe) ** 2) / fe
     return chi_calculada
 
-# 1000 números, intervalo 10, 1000/10 = 100, MAX , MIN, MAX - MIN = RANGO, RANGO / INTERVALOS = AMPLITUD INTERVALOS  
 def generaruniforme(limInf, limSup, cantidad):
     intervalos = int(selected_interval.get())
-    # Data
-    lista: list[float] = [round(random.random() * (limSup - limInf) + limInf, 4) for _ in range(cantidad)]
-    # Procesamiento de datos
+    lista = [round(random.random() * (limSup - limInf) + limInf, 4) for _ in range(cantidad)]
     lista.sort()
     maximo = lista[-1]
     minimo = lista[0]
-    rango = maximo - minimo
-    amplitud_intervalo = rango / intervalos
-    # Creacion de lista que cuente frecuencia observada de cada intervalo
-    # [(MIN, MIN+AMPLITUD-), (MIN+AMPLITUD, MIN+AMPLITUD*2) ...]
 
     grupos_intervalos = crear_grupos_intervalos(minimo, maximo, intervalos)
-    # Contar la frecuencia observada en cada intervalo
     frecuencias_observadas = contar_numeros_en_cada_intervalo(lista, grupos_intervalos, intervalos)
     
+    print("Intervalos:")
+    for i, (inicio, fin) in enumerate(grupos_intervalos):
+        print(f"Intervalo {i+1}: {inicio:.4f} - {fin:.4f}, Frecuencia observada: {frecuencias_observadas[i]}")
+
     frecuencia_esperada = cantidad / intervalos
     chi_calculado = obtener_chi_calculado(frecuencias_observadas, [frecuencia_esperada] * intervalos)
     
     alfa = 0.05
     grados_de_libertad = intervalos - 1
     chi_critico = chi2.ppf(1 - alfa, grados_de_libertad)
-    if chi_calculado < chi_critico:
-        resultado = "Se acepta la hipótesis nula es uniforme"
-    else:
-        resultado = "Se rechaza la hipótesis nula no es uniforme"
 
+    resultado = "Se acepta la hipótesis nula es uniforme" if chi_calculado < chi_critico else "Se rechaza la hipótesis nula no es uniforme"
     graficar(lista, chi_calculado, chi_critico, resultado)
     return lista
 
-
 def generar_normal(media, desviacion, cantidad):
-    lista: list[float]  = []
+    lista = []
     intervalos = int(selected_interval.get())
     i = 0
     while i < cantidad:
@@ -101,48 +86,51 @@ def generar_normal(media, desviacion, cantidad):
         if i < cantidad:
             lista.append(round(Z1 * desviacion + media, 4))
             i += 1
-    
-    # Procesamiento de datos
+
     lista.sort()
     maximo = lista[-1]
     minimo = lista[0]
-    rango = maximo - minimo
-    amplitud_intervalo = rango / intervalos
+
     alfa = 0.05
-    grados_libertad = intervalos - 3 
+    grados_libertad = intervalos - 3
     grupos_intervalos = crear_grupos_intervalos(minimo, maximo, intervalos)
     frecuencias_observadas = contar_numeros_en_cada_intervalo(lista, grupos_intervalos, intervalos)
+
+    print("Intervalos:")
+    for i, (inicio, fin) in enumerate(grupos_intervalos):
+        print(f"Intervalo {i+1}: {inicio:.4f} - {fin:.4f}, Frecuencia observada: {frecuencias_observadas[i]}")
+
     frecuencias_esperada = frecuencia_esperada_normal(grupos_intervalos, cantidad, media, desviacion)
     chi_calculado = obtener_chi_calculado(frecuencias_observadas, frecuencias_esperada)
-    chi_critico = norm.ppf(1 - alfa, grados_libertad)
-    if chi_calculado < chi_critico:
-        resultado = "Se acepta la hipótesis nula"
-    else:
-        resultado = "Se rechaza la hipótesis nula"
+    chi_critico = chi2.ppf(1 - alfa, grados_libertad)
+
+    resultado = "Se acepta la hipótesis nula" if chi_calculado < chi_critico else "Se rechaza la hipótesis nula"
     graficar(lista, chi_calculado, chi_critico, resultado)
     return lista
 
 def generarexponencial(media, cantidad):
     lambd = 1 / media
-    lista: list[float]  = [round(-media * math.log(1 - random.random()), 4) for _ in range(cantidad)]
-    # Procesamiento de datos
+    lista = [round(-media * math.log(1 - random.random()), 4) for _ in range(cantidad)]
     lista.sort()
+    intervalos = int(selected_interval.get())
+
+    alfa = 0.05
+    grados_libertad = intervalos - 2
     maximo = lista[-1]
     minimo = lista[0]
-    intervalos = int(selected_interval.get())
-    alfa = 0.05
-    grados_libertad = intervalos - 2 
+
     grupos_intervalos = crear_grupos_intervalos(minimo, maximo, intervalos)
     frecuencias_observadas = contar_numeros_en_cada_intervalo(lista, grupos_intervalos, intervalos)
+
+    print("Intervalos:")
+    for i, (inicio, fin) in enumerate(grupos_intervalos):
+        print(f"Intervalo {i+1}: {inicio:.4f} - {fin:.4f}, Frecuencia observada: {frecuencias_observadas[i]}")
+
     frecuencias_esperada = frecuencia_esperada_exponencial(grupos_intervalos, cantidad, lambd)
     chi_calculado = obtener_chi_calculado(frecuencias_observadas, frecuencias_esperada)
     chi_critico = chi2.ppf(1 - alfa, grados_libertad)
-    
-    if chi_calculado < chi_critico:
-        resultado = "Se acepta la hipótesis nula es exponencial"
-    else:
-        resultado = "Se rechaza la hipótesis nula es exponencial"
-        
+
+    resultado = "Se acepta la hipótesis nula es exponencial" if chi_calculado < chi_critico else "Se rechaza la hipótesis nula es exponencial"
     graficar(lista, chi_calculado, chi_critico, resultado)
     return lista
 
@@ -154,16 +142,12 @@ def graficar(datos, chi_calculado, chi_critico, resultado):
     plt.xlabel('Valor')
     plt.ylabel('Frecuencia')
     plt.grid(True)
-    
-
     texto_chi = f"Chi calculado = {chi_calculado:.3f}\nChi crítico = {chi_critico:.3f}\n{resultado}"
     plt.figtext(0.75, 0.7, texto_chi, bbox={"facecolor": "white", "alpha": 0.5, "pad": 10})
-
     plt.show()
 
 def generar_numeros():
     numero = int(entryCantidad.get())
-
     opcion = selected_option.get()
     if opcion == "Uniforme":
         desde = float(entryDesde.get())
@@ -175,7 +159,7 @@ def generar_numeros():
     elif opcion == "Normal":
         media = float(entryMedia.get())
         desv = float(entryDesv.get())
-        generar_normal(media, desv, numero )
+        generar_normal(media, desv, numero)
     else:
         print("Opción no válida")
 
@@ -223,7 +207,7 @@ def actualizar_campos(*args):
 
     tk.Button(frame_dinamico, text="Generar", command=generar_numeros).pack()
 
-# Configuración de la ventana principal
+# Interfaz gráfica
 root = tk.Tk()
 root.title("Generador de Números")
 
